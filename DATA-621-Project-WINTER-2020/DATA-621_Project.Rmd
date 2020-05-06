@@ -1,0 +1,243 @@
+---
+title: "Data 621 - Project"
+author: "Maruthi Mutnuri and Atlanta Liu"
+date: "April 28, 2020"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(survival)
+library(survminer)
+library(KMsurv)
+```
+
+##### Read the dataset
+```{r}
+ist<- read.csv("IST_corrected.csv")
+```
+
+##### Creating subsets for the 4 treatment groups:
+```{r}
+ist_control<-subset(ist, ist$RXASP=='N' & ist$RXHEP=='N')
+ist_aspirin<- subset(ist, ist$RXASP=='Y' & ist$RXHEP=='N')
+ist_L_Hep<- subset(ist, ist$RXASP=='N' & ist$RXHEP=='L')
+ist_H_Hep<- subset(ist, ist$RXASP=='N' & (ist$RXHEP=='M' | ist$RXHEP=='H'))
+```
+
+##### Creating the Group variable:
+```{r}
+ist_control$Group = 'Control'
+ist_aspirin$Group = 'Aspirin'
+ist_L_Hep$Group = 'L_Hep'
+ist_H_Hep$Group = 'H_Hep'
+```
+
+##### Extracting the variables needed:
+```{r}
+ist_data <- rbind(ist_control, ist_aspirin, ist_L_Hep, ist_H_Hep)
+data <- select(ist_data,'Group', 'DIED', 'TD', 'SEX', 'AGE', 'RSBP', 'RATRIAL', 'RVISINF')
+```
+
+##### Censoring the data at 180 days (6 months):
+```{r}
+data$TD[data$TD > 180] = 180
+data$DIED[data$TD > 180] = 0
+```
+
+##### factorizing the treatment groups
+```{r}
+data$Group = factor(data$Group, levels = c('Control', 'Aspirin', 'L_Hep', 'H_Hep'))
+```
+
+##### Removing the data with no values for RATRIAL variable and factorizing it:
+```{r}
+length(data$Group)
+data<-subset(data, data$RATRIAL != '' )
+data$RATRIAL = factor(data$RATRIAL, levels = c('N', 'Y'))
+length(data$Group)
+```
+
+##### Viewing the structure of data:
+```{r}
+str(data)
+```
+
+##### Surminer plot:
+
+```{r fig.height = 10, fig.width = 10, fig.align = "center"}
+thefit <- survfit(Surv(TD,DIED)~Group, data=data)
+p1<- survminer::ggsurvplot(thefit,censor=T, size =1, data=data, ylim = c(0.75, 1), risk.table = TRUE, risk.table.height=.2, fontsize=5)
+print(p1)
+```
+
+##### Cox PH model with the treatment groups:
+```{r}
+coxph.fit_group<-coxph(Surv(TD,DIED)~Group, data=data, ties ="breslow")
+summary(coxph.fit_group)
+```
+
+##### Visualization of the Cox PH model with the treatment groups:
+```{r}
+ggforest(coxph.fit_group, data = data)
+```
+
+##### Cox PH model with all the variables and interactions:
+```{r}
+coxph.fit_full<-coxph(Surv(TD,DIED)~Group*AGE+Group*SEX+Group*RSBP+Group*RATRIAL+Group*RVISINF, data=data, ties ="breslow")
+summary(coxph.fit_full)
+```
+
+##### Cox PH reduced model: non-significant variables and interactions removed:   
+```{r}
+coxph.fit_red1<-coxph(Surv(TD,DIED)~Group*AGE+SEX+RSBP+RATRIAL+RVISINF, data=data, ties ="breslow")
+summary(coxph.fit_red1)
+```
+
+##### Anova test: lesser model is significant.
+```{r}
+anova(coxph.fit_full, coxph.fit_red1)
+```
+
+##### Cox PH reduced model: non-significant variables and interactions removed:  
+```{r}
+coxph.fit_red2<-coxph(Surv(TD,DIED)~Group+AGE+RSBP+RATRIAL+RVISINF, data=data, ties ="breslow")
+summary(coxph.fit_red2)
+```
+
+##### Anova test: lesser model is significant.
+```{r}
+anova(coxph.fit_red1, coxph.fit_red2)
+```
+
+##### Visualization of final reduced Cox PH model:
+```{r}
+ggforest(coxph.fit_red2, data = data)
+```
+
+##### Testing assumptions:
+##### 1. Testing Proportional Hazards Assumption
+```{r}
+test.ph <- cox.zph(coxph.fit_red2)
+test.ph
+```
+
+##### Below is the Schoenfeld Residuals plot for testing PH Assumtion: Both Age and Global test fail, so the PH assumption is not met.
+```{r fig.height = 15, fig.width = 10, fig.align = "center"}
+cox.zph.fit = cox.zph(coxph.fit_red2)
+zph<-ggcoxzph(cox.zph.fit, font.main = 12, caption = "Schoenfeld Residuals plot")
+zph
+```
+
+### Checking the PH assumptions for Age alone: 
+```{r fig.height = 5, fig.width = 7, fig.align = "center"}
+par(pch = '.')
+plot(test.ph[2], ylim= c(-0.2, 0.2))    # a plot for the 3rd variable in the fit> 
+chart.plotOptions.line.marker.enabled = FALSE
+abline(0,0, col=2)
+abline(h= coxph.fit_red2$coef[4], col=3, lwd=2, lty=2)
+
+```
+##### coefficent ($\beta$) is changing by time from starting until 16 days, after that it is approximately constant
+
+### To use Survsplit, there should not be any observations are time (TD) = 0.
+```{r}
+length(data$Group)
+data <-subset(data, data$TD != 0)
+length(data$Group)
+```
+
+```{r}
+head(data, 10)
+```
+
+```{r}
+head(data_tf, 10)
+```
+
+
+### Using survsplit to create 3 stratifications based on the analysis from above plot.
+```{r}
+data_tf <- survSplit(Surv(TD, DIED) ~ ., data= data, cut=c(4, 16), start="tstart", zero=0, episode= "tgroup", id="id")
+head(data_tf, 10)
+```
+
+##### Structure of the new dataframe
+```{r}
+str(data_tf)
+```
+
+##### Final Model:
+```{r}
+coxph.fit_FINAL <- coxph(Surv(tstart, TD, DIED) ~ Group+RSBP+RATRIAL+RVISINF + AGE:strata(tgroup), data=data_tf, ties ="breslow")
+summary(coxph.fit_FINAL)
+```
+
+
+##### Testing Assumptions:
+##### 1. Testing Proportional Hazards Assumption
+
+```{r}
+test.ph <- cox.zph(coxph.fit_FINAL)
+test.ph
+```
+
+##### Below is the Schoenfeld Residuals plot for testing PH Assumtion: All variables and global test pass the PH assumtion. RATRIAL variable p-values is 0.042 but it is close to 0.05.
+```{r fig.height = 15, fig.width = 10, fig.align = "center"}
+cox.zph.fit = cox.zph(coxph.fit_FINAL)
+zph<-ggcoxzph(cox.zph.fit, font.main = 12, caption = "Schoenfeld Residuals plot")
+zph
+```
+
+##### 2. Testing influential observations
+```{r warning=FALSE}
+ggcoxdiagnostics(coxph.fit_FINAL, type = "dfbeta", linear.predictions = FALSE)
+```
+
+```{r warning=FALSE}
+ggcoxdiagnostics(coxph.fit_FINAL, type = "deviance",
+                 linear.predictions = FALSE, ggtheme = theme_bw())
+```
+
+##### 3. Non Linearity Assumption:
+```{r fig.height = 10, fig.width = 10, fig.align = "center"}
+ggcoxfunctional(Surv(TD, DIED) ~ AGE + log(AGE) + sqrt(AGE) , data = data)
+```
+
+```{r }
+ggcoxfunctional(Surv(TD, DIED) ~ RSBP + log(RSBP) + sqrt(RSBP), data = data)
+```
+
+##### APPENDIX# 1: Model with higher order terms based on non-linearity assumption check.
+```{r}
+coxph.fit_HIGH1 <- coxph(Surv(tstart, TD, DIED) ~ Group+RSBP+ I(RSBP^2)+ I(RSBP^3)+ I(AGE^2) +RATRIAL+RVISINF + AGE, data=data_tf, ties ="breslow")
+summary(coxph.fit_HIGH1)
+```
+
+```{r}
+coxph.fit_HIGH2 <- coxph(Surv(tstart, TD, DIED) ~ Group+RSBP+ I(RSBP^2)+ I(AGE^2) +RATRIAL+RVISINF + AGE, data=data_tf, ties ="breslow")
+summary(coxph.fit_HIGH2)
+```
+
+```{r}
+coxph.fit_HIGH3 <- coxph(Surv(tstart, TD, DIED) ~ Group+RSBP+ I(RSBP^2) +RATRIAL+RVISINF + AGE:strata(tgroup), data=data_tf, ties ="breslow")
+summary(coxph.fit_HIGH3)
+```
+
+
+##### APPENDIX# 2:To obtain the survival probability, using the summary of survfit.
+```{r}
+options(max.print=999999)
+thefit <- survfit(Surv(TD,DIED)~Group, data=data)
+summary(thefit)
+```
+
+
+   
+
+
+
+
+
+
+
