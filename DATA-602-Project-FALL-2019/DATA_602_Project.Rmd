@@ -1,0 +1,153 @@
+
+```{r libraries}
+library("ggplot2")
+library("dplyr")
+library("mosaic")
+library("tidyverse")
+```
+
+```{r reading files}
+
+G20=c("Argentina","Australia","Brazil","Canada","China","France","Germany","India","Indonesia","Italy","Japan","Mexico","Russia","SaudiArabia","South Africa","South Korea","Turkey","United States","USSR")
+
+CO2emission<- read.csv(file="annual-co-emissions-by-region.csv", header=TRUE, sep=",")
+GDP<- read.csv(file="maddison-data-gdp-per-capita-in-2011us.csv", header=TRUE, sep=",")
+FossilFuelCon<-read.csv(file="maddison-data-gdp-per-capita-in-2011us.csv", header=TRUE, sep=",")
+RenewableEng<-read.csv(file="modern-renewable-energy-consumption.csv", header=TRUE, sep=",")
+
+
+```
+
+
+```{r G20 Co2emissions filtering}
+for (i in 1:length(G20))
+{temp=filter(CO2emission,Entity==G20[i],Year>='1980')
+  if(i==1)
+    G20co2emissions= temp
+  else
+    G20co2emissions=rbind(G20co2emissions,temp)}
+```
+
+
+```{r G20 GDP filtering}
+for (i in 1:length(G20))
+{temp=filter(GDP,Entity==G20[i],Year>='1980')
+  if(i==1)
+    G20GDP= temp
+  else
+    G20GDP=rbind(G20GDP,temp)}
+```
+
+```{r G20 Fossil Fuel Consumptions filtering}
+for (i in 1:length(G20))
+{temp=filter(FossilFuelCon,Entity==G20[i],Year>='1980')
+  if(i==1)
+    G20FossilFuelCon= temp
+  else
+    G20FossilFuelCon=rbind(G20FossilFuelCon,temp)}
+```
+
+```{r  G20 Renewable energy filtering }
+for (i in 1:length(G20))
+{temp=filter(RenewableEng,Entity==G20[i],Year>='1980')
+  if(i==1)
+    G20RenewableEng= temp
+  else
+    G20RenewableEng=rbind(G20RenewableEng,temp)}
+
+```
+```{r}
+head(G20emissions_1)
+```
+
+```{r Linear regression cO2 emissions2}
+#Getting values from G20co2emissions in tonnes, everythign at 10
+G20emissions_1 =filter(G20co2emissions,Year<='2010')
+favstats(~Year|Entity,data=G20emissions_1)
+G20emisisons1=G20emissions_1[,4]
+#Getting GDP values per capitta
+G20GDP_1 =filter(G20GDP,Year<='2010')
+favstats(~Year|Entity,data=G20GDP_1)
+G20GPDcap=G20GDP_1[,4]
+G20_frame=data.frame(G20emisisons1,G20GPDcap)
+#Only appending the 2 dataframs
+G20_Argentina_emission=filter(G20emissions_1,Entity=="Argentina")
+G20_Argentina_GDP=filter(G20GDP_1,Entity=="Argentina")
+G_20Argentina_frame=data.frame(G20_Argentina_emission[,4],G20_Argentina_GDP[,4])
+
+```
+```{r G20 correaltion Argentina}
+#Plotting
+ggplot(data=G_20Argentina_frame, aes(x =G_20Argentina_frame$G20_Argentina_GDP...4., y =G_20Argentina_frame$G20_Argentina_emission...4. )) + geom_point(col="blue", size=2) + xlab("G20emissions(Tonnes)") + ylab("GDP20 capita") + ggtitle("Relationship between G20emissions and GD20 capita") + stat_smooth(method="lm", col='red')
+cor(~G_20Argentina_frame$G20_Argentina_emission...4.,~G_20Argentina_frame$G20_Argentina_GDP...4., data=G_20Argentina_frame)
+#Checking if this data is normal
+```
+```{r Argentina model}
+predictmodel = lm(G_20Argentina_frame$G20_Argentina_emission...4.~G_20Argentina_frame$G20_Argentina_GDP...4., data=G_20Argentina_frame)  #math is the y-variable, salary is the x-variable of the SAT_2010 data frame 
+predicttedvalues = predictmodel$fitted.values #place the predicted values of y for each observed x into a vector
+eismath = predictmodel$residuals      #pull out the residuals
+diagnosticdf = data.frame(predicttedvalues, eismath) #create a data frame of fitted.values and residuals
+#to check if normal distribution
+ggplot(diagnosticdf, aes(sample = eismath)) +  stat_qq(col='blue') + stat_qqline(col='red') + ggtitle("Normal Probability Plot of Residuals")
+#plot residuals
+ggplot(diagnosticdf, aes(x = predicttedvalues, y = eismath)) +  geom_point(size=2, col='blue', position="jitter") + xlab("Predicted Average SAT Math Score") + ylab("Residuals") + ggtitle("Plot of Fits to Residuals") + geom_hline(yintercept=0, color="red", linetype="dashed")
+r=cor(~G_20Argentina_frame$G20_Argentina_emission...4., ~G_20Argentina_frame$G20_Argentina_GDP...4., data=G_20Argentina_frame)
+r_2=r*r
+r_2
+```
+```{r G20 correlation Canada}
+G20_Canada_emission=filter(G20emissions_1,Entity=="Canada")
+G20_Canada_GDP=filter(G20GDP_1,Entity=="Canada")
+G_20Canada_frame=data.frame(G20_Canada_emission[,4],G20_Canada_GDP[,4])
+ggplot(data=G_20Argentina_frame, aes(x =G_20Canada_frame$G20_Canada_emission...4., y =G_20Canada_frame$G20_Canada_GDP...4. )) + geom_point(col="blue", size=2) + xlab("G20emissions(Tonnes)") + ylab("GDP20 capita") + ggtitle("Relationship between G20emissions and GD20 capita") + stat_smooth(method="lm", col='red')
+cor(~G_20Canada_frame$G20_Canada_emission...4., ~G_20Canada_frame$G20_Canada_GDP...4., data=G_20Canada_frame)
+#Checking if this data is normal
+
+```
+
+```{r checking to see if it is normal}
+predictmodel1 = lm(G_20Canada_frame$G20_Canada_emission...4.~G_20Canada_frame$G20_Canada_GDP...4., data=G_20Canada_frame)  #math is the y-variable, salary is the x-variable of the SAT_2010 data frame 
+predicttedvalues1 = predictmodel1$fitted.values #place the predicted values of y for each observed x into a vector
+eismath1 = predictmodel1$residuals      #pull out the residuals
+diagnosticdf1 = data.frame(predicttedvalues1, eismath1) #create a data frame of fitted.values and residuals
+#to check if normal distribution
+ggplot(diagnosticdf1, aes(sample = eismath1)) +  stat_qq(col='blue') + stat_qqline(col='red') + ggtitle("Normal Probability Plot of Residuals")
+#plot residuals
+ggplot(diagnosticdf1, aes(x = predicttedvalues1, y = eismath1)) +  geom_point(size=2, col='blue', position="jitter") + xlab("Predicted Average SAT Math Score") + ylab("Residuals") + ggtitle("Plot of Fits to Residuals") + geom_hline(yintercept=0, color="red", linetype="dashed")
+r=cor(~G_20Canada_frame$G20_Canada_emission...4., ~G_20Canada_frame$G20_Canada_GDP...4., data=G_20Canada_frame)
+r_2=r*r
+r_2
+
+```
+```{r China}
+G20_China_emission=filter(G20emissions_1,Entity=="China")
+G20_China_GDP=filter(G20GDP_1,Entity=="China")
+G_20China_frame=data.frame(G20_China_emission[,4],G20_China_GDP[,4])
+#Plotting
+ggplot(data=G_20China_frame, aes(x =G_20China_frame$G20_China_GDP...4., y =G_20China_frame$G20_China_emission...4. )) + geom_point(col="blue", size=2) + xlab("G20emissions(Tonnes)") + ylab("GDP20 capita") + ggtitle("Relationship between G20emissions and GD20 capita") + stat_smooth(method="lm", col='red')
+cor(~G_20China_frame$G20_China_emission...4., ~G_20China_frame$G20_China_GDP...4., data=G_20China_frame)
+#Checking if this data is normal
+
+```
+```{r checking china}
+predictmodel_china = lm(G_20China_frame$G20_China_emission...4.~G_20China_frame$G20_China_GDP...4., data=G_20China_frame)  #math is the y-variable, salary is the x-variable of the SAT_2010 data frame 
+predicttedvalueschina = predictmodel_china$fitted.values #place the predicted values of y for each observed x into a vector
+eismathchina = predictmodel_china$residuals      #pull out the residuals
+diagnosticdfchina = data.frame(predicttedvalueschina, eismathchina) #create a data frame of fitted.values and residuals
+#to check if normal distribution
+ggplot(diagnosticdfchina, aes(sample = eismathchina)) +  stat_qq(col='blue') + stat_qqline(col='red') + ggtitle("Normal Probability Plot of Residuals")
+#plot residuals
+ggplot(diagnosticdfchina, aes(x = predicttedvalueschina, y = eismathchina)) +  geom_point(size=2, col='blue', position="jitter") + xlab("Predicted Average SAT Math Score") + ylab("Residuals") + ggtitle("Plot of Fits to Residuals") + geom_hline(yintercept=0, color="red", linetype="dashed")
+r=cor(~G_20China_frame$G20_China_emission...4., ~G_20China_frame$G20_China_GDP...4., data=G_20China_frame)
+r_2=r*r
+r_2
+
+```
+
+
+
+
+
+```{r deleteall}
+rm(list = ls(all.names = TRUE))
+```
