@@ -1,2 +1,3 @@
 ENEL 645 Final Project. 
 The images and npy files are available at https://drive.google.com/drive/folders/17V8a7784-9T43X9eeCCxZrZcr3ATgDHq?usp=sharing.
+npy files can be used in place of loading the images and converting them to X and Y numpy arrays.
